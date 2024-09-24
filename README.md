@@ -1,6 +1,3 @@
-Certainly! Here's the updated `README.md` file for the UpdateDNS project, incorporating the correct sample configuration file path and detailed instructions on how to develop and deploy the application.
-
----
 
 # UpdateDNS
 
@@ -12,7 +9,7 @@ UpdateDNS is a lightweight, configurable Elixir application designed to keep you
 
 ## Features
 
-- **Multiple DNS Provider Support**: Compatible with various DNS providers (e.g., Cloudflare, Google Domains).
+- **Cloudflare Support**: Compatible with Cloudflare DNS provider.
 - **IPv4 and IPv6 Support**: Updates both A (IPv4) and AAAA (IPv6) records.
 - **Easy Configuration**: Simple configuration using Elixir's configuration files.
 - **Automated Execution**: Can run as a daemon or be scheduled via cron jobs.
