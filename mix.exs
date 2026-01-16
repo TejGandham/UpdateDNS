@@ -7,6 +7,7 @@ defmodule UpdateCloudflareDNS.MixProject do
       version: "0.2.0",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps()
     ]
   end
@@ -17,10 +18,14 @@ defmodule UpdateCloudflareDNS.MixProject do
     ]
   end
 
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
+
   defp deps do
     [
       {:req, "~> 0.5"},
-      {:logger_file_backend, "~> 0.0.14"}
+      {:logger_file_backend, "~> 0.0.14"},
+      {:mox, "~> 1.1", only: :test}
     ]
   end
 end
