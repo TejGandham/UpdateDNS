@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts (mounted as volumes in dev)
+_build/
+deps/
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets (mounted at runtime)
+config/secrets.exs
+
+# Logs (mounted at runtime)
+log/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in container)
+*.md
+LICENSE
+
+# Test artifacts
+/cover/
+/doc/
+
+# Elixir artifacts
+.fetch
+erl_crash.dump
+*.ez
+
+# Docker files (prevent recursive context)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+Makefile

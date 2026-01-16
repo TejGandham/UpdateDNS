@@ -1,0 +1,75 @@
+# UpdateDNS Docker Compose Configuration
+# Usage:
+#   make dev          - Interactive Elixir shell
+#   make update       - Run DNS update
+#   make scheduler    - Start background scheduler
+
+services:
+  # Interactive development shell
+  # Usage: docker compose run --rm dev
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app                          # Mount source for live editing
+      - deps:/app/deps                  # Cache dependencies
+      - build:/app/_build               # Cache build artifacts
+      - ./config/secrets.exs:/app/config/secrets.exs:ro  # Mount secrets
+    environment:
+      - MIX_ENV=dev
+    working_dir: /app
+    stdin_open: true                    # Enable interactive input
+    tty: true                           # Allocate TTY for colors
+    command: iex -S mix
+
+  # One-shot DNS update (respects IP cache)
+  # Usage: docker compose run --rm update
+  update:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./config/secrets.exs:/app/config/secrets.exs:ro
+      - ./log:/app/log
+      - ip_cache:/tmp                   # Persist IP cache between runs
+    environment:
+      - MIX_ENV=dev
+    command: mix run -e "UpdateCloudflareDNS.run()"
+
+  # Scheduled DNS updates (runs every N minutes)
+  # Usage: docker compose --profile scheduled up -d scheduler
+  # Configure interval with UPDATE_INTERVAL_MINUTES env var
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./config/secrets.exs:/app/config/secrets.exs:ro
+      - ./log:/app/log
+      - ip_cache:/tmp
+    environment:
+      - MIX_ENV=dev
+      - UPDATE_INTERVAL_MINUTES=${UPDATE_INTERVAL_MINUTES:-5}
+    restart: unless-stopped
+    command: >
+      sh -c 'echo "Starting UpdateDNS scheduler (interval: $${UPDATE_INTERVAL_MINUTES} minutes)..."
+      while true; do
+        echo ""
+        echo "=========================================="
+        echo "[$(date +"%Y-%m-%d %H:%M:%S")] Running DNS update..."
+        echo "=========================================="
+        mix run -e "UpdateCloudflareDNS.run()"
+        echo "[$(date +"%Y-%m-%d %H:%M:%S")] Next update in $${UPDATE_INTERVAL_MINUTES} minutes"
+        sleep $${UPDATE_INTERVAL_MINUTES}m
+      done'
+    profiles:
+      - scheduled                       # Only starts with --profile scheduled
+
+volumes:
+  deps:                                 # Cached Elixir dependencies
+    name: update_dns_deps
+  build:                                # Cached build artifacts
+    name: update_dns_build
+  ip_cache:                             # Persistent IP cache
+    name: update_dns_ip_cache
