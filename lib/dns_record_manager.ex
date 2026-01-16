@@ -12,6 +12,10 @@ defmodule DNSRecordManager do
 
   @cloudflare_api_url "https://api.cloudflare.com/client/v4"
 
+  defp http_client do
+    Application.get_env(:update_dns, :http_client, UpdateDNS.HTTPClient.ReqImpl)
+  end
+
   defp ip_cache_dir do
     Application.get_env(:update_dns, :ip_cache_dir, "/tmp")
   end
@@ -45,7 +49,7 @@ defmodule DNSRecordManager do
 
     Logger.debug("Fetching DNS record ID for: #{record_name}")
 
-    case Req.get(client(api_token), url: url, params: [name: record_name, type: "A"]) do
+    case http_client().get(client(api_token), url: url, params: [name: record_name, type: "A"]) do
       {:ok, %{status: 200, body: %{"result" => [%{"id" => id} | _]}}} ->
         {:ok, id}
 
@@ -68,7 +72,7 @@ defmodule DNSRecordManager do
   def get_dns_record_ip(zone_id, api_token, record_name) do
     url = "/zones/#{zone_id}/dns_records"
 
-    case Req.get(client(api_token), url: url, params: [name: record_name, type: "A"]) do
+    case http_client().get(client(api_token), url: url, params: [name: record_name, type: "A"]) do
       {:ok, %{status: 200, body: %{"result" => [%{"content" => ip} | _]}}} ->
         {:ok, ip}
 
@@ -116,7 +120,7 @@ defmodule DNSRecordManager do
     Logger.debug("Updating DNS record #{record_name} to IP: #{ip}")
 
     # Use PATCH for partial update (Cloudflare best practice)
-    case Req.patch(client(api_token), url: url, json: %{content: ip}) do
+    case http_client().patch(client(api_token), url: url, json: %{content: ip}) do
       {:ok, %{status: status}} when status in 200..299 ->
         cache_ip(ip, ip_key)
         Logger.info("DNS record updated successfully: #{record_name} -> #{ip}")
