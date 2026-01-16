@@ -6,8 +6,6 @@ defmodule UpdateCloudflareDNS do
 
   ## Configuration
 
-  Zone-centric format (recommended):
-
       config :update_dns, :zones, [
         %{
           zone_id: "your_zone_id",
@@ -19,13 +17,6 @@ defmodule UpdateCloudflareDNS do
           ]
         }
       ]
-
-  Legacy single-record format (still supported):
-
-      config :update_dns, :cloudflare,
-        zone_id: "your_zone_id",
-        api_token: "your_api_token",
-        record_name: "home.example.com"
 
   ## Usage
 
@@ -71,26 +62,7 @@ defmodule UpdateCloudflareDNS do
   end
 
   defp load_zones_config do
-    case Application.get_env(:update_dns, :zones) do
-      nil -> load_legacy_config()
-      zones when is_list(zones) -> zones
-    end
-  end
-
-  defp load_legacy_config do
-    case Application.get_env(:update_dns, :cloudflare) do
-      nil ->
-        []
-
-      config ->
-        [
-          %{
-            zone_id: config[:zone_id],
-            api_token: config[:api_token],
-            records: [%{name: config[:record_name]}]
-          }
-        ]
-    end
+    Application.get_env(:update_dns, :zones, [])
   end
 
   defp count_records(zones) do
