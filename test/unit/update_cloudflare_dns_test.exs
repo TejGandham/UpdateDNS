@@ -1,5 +1,6 @@
 defmodule UpdateCloudflareDNSTest do
-  use ExUnit.Case, async: true
+  # async: false because tests modify Application env for zones and ip_cache_dir
+  use ExUnit.Case, async: false
   import Mox
   import UpdateDNS.TestFixtures
 
@@ -61,14 +62,16 @@ defmodule UpdateCloudflareDNSTest do
       |> expect(:get, 2, fn _client, _opts ->
         {:ok, %{status: 200, body: cloudflare_dns_record_response()}}
       end)
-      # Updates (2 records)
-      |> expect(:patch, 2, fn _client, _opts ->
+      # Update (only first record - second uses cached IP)
+      |> expect(:patch, fn _client, _opts ->
         {:ok, %{status: 200, body: cloudflare_update_success_response()}}
       end)
 
       {:ok, results} = UpdateCloudflareDNS.run()
       assert length(results) == 2
-      assert Enum.all?(results, &(&1.result == :ok))
+      # First record updates, second is :unchanged (same IP key "auto" is cached)
+      assert Enum.at(results, 0).result == :ok
+      assert Enum.at(results, 1).result == :unchanged
     end
 
     test "uses manual IP when specified" do
@@ -177,7 +180,8 @@ defmodule UpdateCloudflareDNSTest do
         {:ok, %{status: 200, body: ip_service_response()}}
       end)
 
-      assert {:ok, valid_ip()} = UpdateCloudflareDNS.check_ip()
+      assert {:ok, ip} = UpdateCloudflareDNS.check_ip()
+      assert ip == valid_ip()
     end
   end
 

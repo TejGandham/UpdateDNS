@@ -1,5 +1,6 @@
 defmodule DNSRecordManagerTest do
-  use ExUnit.Case, async: true
+  # async: false because tests modify Application env for ip_cache_dir
+  use ExUnit.Case, async: false
   import Mox
   import UpdateDNS.TestFixtures
 
