@@ -108,7 +108,14 @@ defmodule DNSRecordManager do
   @doc """
   Forces a DNS record update regardless of cache.
   """
-  @spec force_update_dns_record(String.t(), String.t(), String.t(), String.t(), String.t(), String.t()) ::
+  @spec force_update_dns_record(
+          String.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          String.t()
+        ) ::
           :ok | {:error, String.t()}
   def force_update_dns_record(zone_id, api_token, record_id, ip, record_name, ip_key) do
     do_update_dns_record(zone_id, api_token, record_id, ip, record_name, ip_key)

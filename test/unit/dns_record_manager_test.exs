@@ -46,7 +46,9 @@ defmodule DNSRecordManagerTest do
         {:ok, %{status: 401, body: %{"errors" => [%{"message" => "Unauthorized"}]}}}
       end)
 
-      {:error, message} = DNSRecordManager.get_dns_record_id(zone_id(), api_token(), record_name())
+      {:error, message} =
+        DNSRecordManager.get_dns_record_id(zone_id(), api_token(), record_name())
+
       assert message =~ "HTTP 401"
     end
 
@@ -56,7 +58,9 @@ defmodule DNSRecordManagerTest do
         {:error, %Req.TransportError{reason: :econnrefused}}
       end)
 
-      {:error, message} = DNSRecordManager.get_dns_record_id(zone_id(), api_token(), record_name())
+      {:error, message} =
+        DNSRecordManager.get_dns_record_id(zone_id(), api_token(), record_name())
+
       assert message =~ "Failed to get DNS record"
     end
   end

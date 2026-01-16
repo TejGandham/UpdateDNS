@@ -42,24 +42,28 @@ defmodule PublicIPFetcher do
 
   defp fetch_from_service(url, key) do
     case http_client().get(url, receive_timeout: 10_000) do
-      {:ok, %{status: 200, body: body}} when is_map(body) ->
-        case Map.get(body, key) do
-          nil -> {:error, "Key '#{key}' not found in response"}
-          ip -> {:ok, ip}
-        end
-
-      {:ok, %{status: 200, body: body}} when is_binary(body) ->
-        case JSON.decode(body) do
-          {:ok, %{^key => ip}} -> {:ok, ip}
-          {:ok, _} -> {:error, "Key '#{key}' not found in response"}
-          {:error, _} -> {:error, "Failed to parse JSON response"}
-        end
+      {:ok, %{status: 200, body: body}} ->
+        extract_ip_from_body(body, key)
 
       {:ok, %{status: status}} ->
         {:error, "HTTP #{status}"}
 
       {:error, exception} ->
         {:error, Exception.message(exception)}
+    end
+  end
+
+  defp extract_ip_from_body(body, key) when is_map(body) do
+    case Map.get(body, key) do
+      nil -> {:error, "Key '#{key}' not found in response"}
+      ip -> {:ok, ip}
+    end
+  end
+
+  defp extract_ip_from_body(body, key) when is_binary(body) do
+    case JSON.decode(body) do
+      {:ok, decoded} -> extract_ip_from_body(decoded, key)
+      {:error, _} -> {:error, "Failed to parse JSON response"}
     end
   end
 end

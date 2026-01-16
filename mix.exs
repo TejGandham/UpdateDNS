@@ -25,7 +25,8 @@ defmodule UpdateCloudflareDNS.MixProject do
     [
       {:req, "~> 0.5"},
       {:logger_file_backend, "~> 0.0.14"},
-      {:mox, "~> 1.1", only: :test}
+      {:mox, "~> 1.1", only: :test},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
 end
