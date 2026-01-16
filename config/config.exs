@@ -7,8 +7,8 @@ config :logger, :file_log,
   path: "log/update_dns.log",
   level: :info
 
-# IP cache file location
+# IP cache directory (stores per-IP cache files)
 config :update_dns,
-  ip_cache_file: "/tmp/update_dns_last_ip.txt"
+  ip_cache_dir: "/tmp"
 
 import_config "secrets.exs"
