@@ -30,10 +30,37 @@ Edit `config/secrets.exs`:
 ```elixir
 import Config
 
-config :update_dns, :cloudflare,
-  zone_id: "your_zone_id",
-  api_token: "your_api_token",
-  record_name: "home.example.com"
+# Zone-centric format (recommended)
+config :update_dns, :zones, [
+  %{
+    zone_id: "your_zone_id",
+    api_token: "your_api_token",
+    records: [
+      %{name: "home.example.com"},                     # Auto-detected IP
+      %{name: "vpn.example.com"},                      # Auto-detected IP
+      %{name: "internal.example.com", ip: "10.0.0.5"}  # Manual IP
+    ]
+  }
+]
+```
+
+### Multiple Zones
+
+You can update records across different Cloudflare zones:
+
+```elixir
+config :update_dns, :zones, [
+  %{
+    zone_id: "zone_id_1",
+    api_token: "token_1",
+    records: [%{name: "home.example.com"}]
+  },
+  %{
+    zone_id: "zone_id_2",
+    api_token: "token_2",
+    records: [%{name: "home.otherdomain.com"}]
+  }
+]
 ```
 
 ### Getting Cloudflare Credentials
@@ -46,11 +73,11 @@ config :update_dns, :cloudflare,
 
 | Command | Description |
 |---------|-------------|
-| `make update` | Update DNS record (skips if IP unchanged) |
-| `make force-update` | Update DNS record (bypass cache) |
+| `make update` | Update DNS records (skips if IP unchanged) |
+| `make force-update` | Update DNS records (bypass cache) |
 | `make check-ip` | Show current public IP |
-| `make check-dns` | Show IP in Cloudflare DNS |
-| `make clear-cache` | Clear cached IP |
+| `make check-dns` | Show IP in Cloudflare DNS for all records |
+| `make clear-cache` | Clear all cached IPs |
 | `make dev` | Interactive Elixir shell |
 | `make scheduler` | Start auto-updates (every 5 min) |
 | `make stop` | Stop scheduler |
@@ -74,6 +101,9 @@ make stop
 
 ## Features
 
+- **Multi-Zone Support**: Update records across multiple Cloudflare zones
+- **Multi-Record Support**: Update multiple A records in a single run
+- **Manual IP Override**: Optionally specify IP per record instead of auto-detection
 - **IP Caching**: Only calls Cloudflare API when IP actually changes
 - **Fallback Services**: Multiple IP detection services (ipify, ifconfig.co, my-ip.io)
 - **PATCH Updates**: Uses Cloudflare's idiomatic partial update endpoint
