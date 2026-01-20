@@ -2,6 +2,22 @@ defmodule UpdateCloudflareDNS do
   @moduledoc """
   Main module for updating Cloudflare DNS records with current public IP.
 
+  Supports multiple zones and records with optional manual IP overrides.
+
+  ## Configuration
+
+      config :update_dns, :zones, [
+        %{
+          zone_id: "your_zone_id",
+          api_token: "your_api_token",
+          records: [
+            %{name: "home.example.com"},                    # Uses auto-detected IP
+            %{name: "vpn.example.com"},                     # Uses auto-detected IP
+            %{name: "internal.example.com", ip: "10.0.0.5"} # Uses manual IP
+          ]
+        }
+      ]
+
   ## Usage
 
       # Run update (respects IP cache)
@@ -13,61 +29,143 @@ defmodule UpdateCloudflareDNS do
 
   require Logger
 
-  defp record_name do
-    Application.fetch_env!(:update_dns, :cloudflare)[:record_name]
-  end
-
   @doc """
-  Runs the DNS update process.
+  Runs the DNS update process for all configured zones and records.
 
   ## Options
     * `:force` - If true, updates DNS even if IP hasn't changed (default: false)
+
+  ## Returns
+    * `{:ok, results}` - List of results per record
+    * `{:error, reason}` - If a critical error occurs (e.g., can't fetch public IP)
   """
-  @spec run(keyword()) :: :ok | :unchanged | {:error, String.t()}
+  @spec run(keyword()) :: {:ok, list()} | {:error, String.t()}
   def run(opts \\ []) do
     force = Keyword.get(opts, :force, false)
-    Logger.info("Starting Cloudflare DNS update for #{record_name()}...")
+    zones = load_zones_config()
 
-    with {:ok, public_ip} <- PublicIPFetcher.get_public_ip(),
-         {:ok, record_id} <- DNSRecordManager.get_dns_record_id(record_name()),
-         result <- update_record(record_id, public_ip, force) do
-      handle_result(result, public_ip, record_id)
-    else
+    Logger.info("Starting Cloudflare DNS update for #{count_records(zones)} record(s)...")
+
+    # Pre-fetch public IP for records that need it
+    auto_ip_result = fetch_auto_ip_if_needed(zones)
+
+    case auto_ip_result do
+      {:ok, auto_ip} ->
+        results = update_all_zones(zones, auto_ip, force)
+        log_summary(results)
+        {:ok, results}
+
       {:error, reason} ->
-        Logger.error("DNS update failed: #{reason}")
+        Logger.error("Failed to fetch public IP: #{reason}")
         {:error, reason}
     end
   end
 
-  defp update_record(record_id, ip, true = _force) do
-    DNSRecordManager.force_update_dns_record(record_id, ip, record_name())
+  defp load_zones_config do
+    Application.get_env(:update_dns, :zones, [])
   end
 
-  defp update_record(record_id, ip, false = _force) do
-    DNSRecordManager.update_dns_record(record_id, ip, record_name())
+  defp count_records(zones) do
+    Enum.reduce(zones, 0, fn zone, acc ->
+      acc + length(Map.get(zone, :records, []))
+    end)
   end
 
-  defp handle_result(:ok, ip, record_id) do
-    Logger.info("Success! IP: #{ip}, Record ID: #{record_id}")
-    :ok
+  defp fetch_auto_ip_if_needed(zones) do
+    needs_auto_ip? =
+      Enum.any?(zones, fn zone ->
+        Enum.any?(zone.records, fn record ->
+          not Map.has_key?(record, :ip)
+        end)
+      end)
+
+    if needs_auto_ip? do
+      PublicIPFetcher.get_public_ip()
+    else
+      {:ok, nil}
+    end
   end
 
-  defp handle_result(:unchanged, ip, _record_id) do
-    Logger.info("No update needed. Current IP: #{ip}")
-    :unchanged
+  defp update_all_zones(zones, auto_ip, force) do
+    Enum.flat_map(zones, fn zone ->
+      update_zone_records(zone, auto_ip, force)
+    end)
   end
 
-  defp handle_result({:error, reason}, _ip, _record_id) do
-    Logger.error("Update failed: #{reason}")
-    {:error, reason}
+  defp update_zone_records(zone, auto_ip, force) do
+    %{zone_id: zone_id, api_token: api_token, records: records} = zone
+
+    Enum.map(records, fn record ->
+      update_single_record(zone_id, api_token, record, auto_ip, force)
+    end)
+  end
+
+  defp update_single_record(zone_id, api_token, record, auto_ip, force) do
+    record_name = record.name
+    {ip, ip_key} = resolve_ip(record, auto_ip)
+
+    Logger.info("Processing #{record_name} with IP #{ip}...")
+
+    result =
+      with {:ok, record_id} <- DNSRecordManager.get_dns_record_id(zone_id, api_token, record_name) do
+        if force do
+          DNSRecordManager.force_update_dns_record(
+            zone_id,
+            api_token,
+            record_id,
+            ip,
+            record_name,
+            ip_key
+          )
+        else
+          DNSRecordManager.update_dns_record(
+            zone_id,
+            api_token,
+            record_id,
+            ip,
+            record_name,
+            ip_key
+          )
+        end
+      end
+
+    %{record_name: record_name, ip: ip, result: result}
+  end
+
+  defp resolve_ip(record, auto_ip) do
+    case Map.get(record, :ip) do
+      nil -> {auto_ip, "auto"}
+      manual_ip -> {manual_ip, manual_ip}
+    end
+  end
+
+  defp log_summary(results) do
+    {ok, unchanged, errors} =
+      Enum.reduce(results, {0, 0, 0}, fn %{result: result}, {ok, unchanged, errors} ->
+        case result do
+          :ok -> {ok + 1, unchanged, errors}
+          :unchanged -> {ok, unchanged + 1, errors}
+          {:error, _} -> {ok, unchanged, errors + 1}
+        end
+      end)
+
+    Logger.info("Summary: #{ok} updated, #{unchanged} unchanged, #{errors} failed")
+
+    Enum.each(results, fn %{record_name: name, ip: ip, result: result} ->
+      case result do
+        :ok -> Logger.info("  ✓ #{name} -> #{ip}")
+        :unchanged -> Logger.info("  - #{name} (unchanged)")
+        {:error, reason} -> Logger.error("  ✗ #{name}: #{reason}")
+      end
+    end)
   end
 
   @doc """
-  Clears the IP cache, causing the next run to update DNS regardless of IP.
+  Clears all IP caches, causing the next run to update DNS regardless of IP.
   """
-  @spec clear_cache() :: :ok | {:error, File.posix()}
+  @spec clear_cache() :: :ok
   def clear_cache do
-    DNSRecordManager.clear_cache()
+    DNSRecordManager.clear_all_caches()
   end
 
   @doc """
@@ -79,10 +177,19 @@ defmodule UpdateCloudflareDNS do
   end
 
   @doc """
-  Returns the IP currently set in the DNS record.
+  Returns the IP currently set in DNS for all configured records.
   """
-  @spec check_dns_ip() :: {:ok, String.t()} | {:error, String.t()}
+  @spec check_dns_ip() :: list(map())
   def check_dns_ip do
-    DNSRecordManager.get_dns_record_ip(record_name())
+    zones = load_zones_config()
+
+    Enum.flat_map(zones, fn zone ->
+      %{zone_id: zone_id, api_token: api_token, records: records} = zone
+
+      Enum.map(records, fn record ->
+        result = DNSRecordManager.get_dns_record_ip(zone_id, api_token, record.name)
+        %{record_name: record.name, result: result}
+      end)
+    end)
   end
 end

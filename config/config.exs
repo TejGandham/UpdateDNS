@@ -7,8 +7,16 @@ config :logger, :file_log,
   path: "log/update_dns.log",
   level: :info
 
-# IP cache file location
+# IP cache directory (stores per-IP cache files)
 config :update_dns,
-  ip_cache_file: "/tmp/update_dns_last_ip.txt"
+  ip_cache_dir: "/tmp"
 
-import_config "secrets.exs"
+# Import environment-specific config (must be before secrets)
+if File.exists?("config/#{config_env()}.exs") do
+  import_config "#{config_env()}.exs"
+end
+
+# Import secrets (credentials) - not committed to git
+if File.exists?("config/secrets.exs") do
+  import_config "secrets.exs"
+end
