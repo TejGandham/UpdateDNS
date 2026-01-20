@@ -110,4 +110,4 @@ clean:
 
 # Run tests (if any)
 test:
-	docker compose run --rm dev mix test
+	docker compose run --rm -e MIX_ENV=test dev mix test
